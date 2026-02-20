@@ -34,97 +34,86 @@
                 try {
                     const zip = new JSZip();
                     const content = await zip.loadAsync(zipFile);
-                    // Filtrar archivos basura de Mac y solo imágenes
-                    const files = Object.values(content.files).filter(f => 
-                        !f.dir && !f.name.includes('__MACOSX') && f.name.match(/\.(jpg|jpeg|png)$/i)
+                    // Filtro exacto como tu Colab
+                    const imageFiles = Object.values(content.files).filter(f => 
+                        !f.dir && !f.name.startsWith('.') && !f.name.includes('__MACOSX') && f.name.match(/\.(jpg|jpeg|png)$/i)
                     );
 
-                    for (let file of files) {
+                    for (let file of imageFiles) {
                         const fileName = file.name.split('/').pop();
-                        const username = fileName.split('.')[0];
+                        const employeeid = fileName.split('.')[0]; // Igual que os.path.splitext
                         
                         try {
-                            // 1. BUSCAR EL ID INTERNO POR USERNAME
-                            // Ajustado según documentación: se busca al usuario para obtener su employeeInternalId
-                            const searchRes = await fetch(`https://api-prod.humand.co/public/api/v1/users?username=${username}`, {
-                                headers: { 'Authorization': `Basic ${apiKey}` }
-                            });
-                            const userData = await searchRes.json();
-                            
-                            // Validar si encontramos al usuario
-                            const internalId = userData.data?.[0]?.employeeInternalId || userData[0]?.employeeInternalId;
-
-                            if (!internalId) throw new Error("No se encontró el ID interno");
-
-                            // 2. SUBIR LA FOTO USANDO EL ID INTERNO
                             const blob = await file.async("blob");
                             const formData = new FormData();
                             formData.append('file', blob, fileName);
 
-                            const uploadRes = await fetch(`https://api-prod.humand.co/public/api/v1/users/${internalId}/profile-picture`, {
+                            // URL idéntica a tu Colab
+                            const url = `https://api-prod.humand.co/public/api/v1/users/${employeeid}/profile-picture`;
+
+                            const response = await fetch(url, {
                                 method: 'PUT',
                                 headers: { 'Authorization': `Basic ${apiKey}` },
                                 body: formData
                             });
 
-                            setResults(prev => [...prev, { name: username, status: uploadRes.ok ? 'success' : 'error', msg: uploadRes.ok ? 'Sincronizado' : 'Error API' }]);
+                            if (response.status === 200) {
+                                setResults(prev => [...prev, { id: employeeid, status: 'success', msg: 'Cargado OK' }]);
+                            } else {
+                                const errorText = await response.text();
+                                setResults(prev => [...prev, { id: employeeid, status: 'error', msg: `Error ${response.status}` }]);
+                            }
                         } catch (err) {
-                            setResults(prev => [...prev, { name: username, status: 'error', msg: err.message }]);
+                            setResults(prev => [...prev, { id: employeeid, status: 'error', msg: 'Error de red' }]);
                         }
                     }
-                } catch (e) { alert("Error al procesar el archivo ZIP"); }
+                } catch (e) { alert("Error al procesar el ZIP"); }
                 setLoading(false);
             };
 
             return (
-                <div className="min-h-screen flex flex-col items-center justify-center p-6">
+                <div className="min-h-screen flex flex-col items-center justify-center p-6 text-[#1E293B]">
                     <div className="w-full max-w-xl">
                         <div className="text-center mb-10">
-                            <h1 className="text-4xl font-bold text-[#1E293B] mb-2">Sincronizador de Fotos</h1>
-                            <p className="text-slate-500">Busca IDs por nombre de archivo y actualiza Humand</p>
+                            <h1 className="text-4xl font-bold mb-2">Humand Photo Sync</h1>
+                            <p className="text-slate-500 font-medium">Versión Web del script Colab</p>
                         </div>
 
                         <div className="glass-card p-10 space-y-8">
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Token de Acceso (API Key)</label>
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Token de Acceso</label>
                                 <input 
                                     type="password" 
                                     className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                    placeholder="Pega tu API Key aquí..."
+                                    placeholder="Ingresa tu API Key..."
                                     onChange={e => setApiKey(e.target.value)}
                                 />
                             </div>
 
                             <div className="border-2 border-dashed border-slate-100 rounded-[24px] p-10 text-center hover:bg-slate-50 transition-colors">
-                                <input 
-                                    type="file" 
-                                    accept=".zip" 
-                                    className="hidden" 
-                                    id="file-upload"
-                                    onChange={e => setZipFile(e.target.files[0])}
-                                />
+                                <input type="file" accept=".zip" className="hidden" id="file-upload" onChange={e => setZipFile(e.target.files[0])} />
                                 <label htmlFor="file-upload" className="cursor-pointer">
-                                    <div className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold inline-block mb-3 shadow-lg shadow-blue-200">
-                                        {zipFile ? zipFile.name : "Seleccionar ZIP"}
+                                    <div className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold inline-block mb-3 shadow-lg shadow-blue-200 active:scale-95 transition-transform">
+                                        {zipFile ? zipFile.name : "Seleccionar archivo ZIP"}
                                     </div>
-                                    <p className="text-xs text-slate-400 font-medium">Las fotos deben llamarse como el username</p>
+                                    <p className="text-[11px] text-slate-400 font-bold uppercase tracking-tighter">Arrastra tus fotos aquí</p>
                                 </label>
                             </div>
 
                             <button 
                                 onClick={processFiles}
-                                disabled={loading}
-                                className="w-full bg-[#1E293B] text-white py-5 rounded-2xl font-bold text-sm uppercase tracking-widest hover:bg-black transition-all shadow-xl active:scale-95 disabled:opacity-50"
+                                disabled={loading || !zipFile || !apiKey}
+                                className="w-full bg-[#1E293B] text-white py-5 rounded-2xl font-bold text-sm uppercase tracking-widest hover:bg-black transition-all shadow-xl disabled:opacity-30 disabled:cursor-not-allowed"
                             >
-                                {loading ? "Procesando..." : "Iniciar Sincronización"}
+                                {loading ? "Sincronizando..." : "Iniciar Carga Masiva"}
                             </button>
                         </div>
 
                         <div className="mt-10 space-y-3">
                             {results.map((res, i) => (
-                                <div key={i} className={`p-4 rounded-2xl border flex justify-between items-center ${res.status === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-rose-50 border-rose-100 text-rose-700'}`}>
-                                    <span className="font-bold">{res.name}.jpg</span>
-                                    <span className="text-xs font-black uppercase tracking-tighter bg-white/50 px-3 py-1 rounded-full">
+                                <div key={i} className={`p-4 rounded-2xl border flex justify-between items-center animate-in fade-in slide-in-from-bottom-2 duration-300 ${res.status === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-rose-50 border-rose-100 text-rose-700'}`}>
+                                    <span className="font-bold">ID: {res.id}</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest bg-white/50 px-3 py-1 rounded-full border border-current/10">
                                         {res.msg}
                                     </span>
                                 </div>
