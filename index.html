@@ -13,8 +13,8 @@
     <style>
         body { font-family: 'Outfit', sans-serif; background-color: #F8FAFC; color: #1E293B; }
         .glass-card { background: white; border-radius: 32px; box-shadow: 0 20px 50px rgba(0,0,0,0.04); }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-in { animation: fadeIn 0.4s ease-out forwards; }
+        .result-card { animation: slideIn 0.3s ease-out forwards; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
@@ -37,51 +37,45 @@
                     const zip = new JSZip();
                     const content = await zip.loadAsync(zipFile);
                     
-                    // 1. FILTRAR ARCHIVOS IGUAL QUE EN EL COLAB
+                    // Filtrar archivos como en Colab
                     const imageFiles = Object.values(content.files).filter(f => 
-                        !f.dir && 
-                        !f.name.startsWith('.') && 
-                        !f.name.includes('__MACOSX') && 
-                        /\.(jpg|jpeg|png)$/i.test(f.name)
+                        !f.dir && !f.name.startsWith('.') && !f.name.includes('__MACOSX') && /\.(jpg|jpeg|png)$/i.test(f.name)
                     );
 
                     for (let file of imageFiles) {
                         const fileName = file.name.split('/').pop();
-                        const employeeid = fileName.split('.')[0]; // Toma el nombre sin extensión
+                        const employeeid = fileName.split('.')[0]; 
                         
                         try {
-                            const blob = await file.async("blob");
+                            const fileData = await file.async("blob");
                             
-                            // 2. CONSTRUIR FORM DATA EXACTO (Clave 'file')
+                            // Replicando exactamente la estructura de 'requests' de Python
                             const formData = new FormData();
-                            // Es fundamental que el campo se llame 'file' como en tu script de Python
-                            formData.append('file', blob, fileName); 
+                            formData.append('file', fileData, fileName); 
 
                             const url = `https://api-prod.humand.co/public/api/v1/users/${employeeid}/profile-picture`;
 
-                            // 3. PETICIÓN PUT (Sin Content-Type manual)
                             const response = await fetch(url, {
                                 method: 'PUT',
                                 headers: { 
                                     'Authorization': `Basic ${apiKey}`
-                                    // Nota: El navegador pone el boundary del FormData automáticamente
+                                    // NO agregar Content-Type manual, el navegador lo gestiona con FormData
                                 },
                                 body: formData
                             });
 
-                            if (response.ok) {
-                                setResults(prev => [...prev, { id: employeeid, status: 'success', msg: 'Cargado OK' }]);
+                            if (response.status === 200) {
+                                setResults(prev => [...prev, { id: employeeid, status: 'success', msg: 'Sincronizado' }]);
                             } else {
-                                const errorText = await response.text();
-                                console.error(`Error en ${employeeid}:`, errorText);
+                                const text = await response.text();
                                 setResults(prev => [...prev, { id: employeeid, status: 'error', msg: `Error ${response.status}` }]);
                             }
                         } catch (err) {
-                            setResults(prev => [...prev, { id: employeeid, status: 'error', msg: 'Error de conexión' }]);
+                            setResults(prev => [...prev, { id: employeeid, status: 'error', msg: 'Falla de Red' }]);
                         }
                     }
                 } catch (e) { 
-                    alert("Error al abrir el archivo ZIP. Asegúrate de que sea un archivo válido."); 
+                    alert("Error al abrir el ZIP."); 
                 }
                 setLoading(false);
             };
@@ -91,34 +85,28 @@
                     <div className="w-full max-w-xl">
                         <header className="text-center mb-10">
                             <h1 className="text-4xl font-bold tracking-tight mb-2">Humand Photo Sync</h1>
-                            <p className="text-slate-500 font-medium italic">Sincronización masiva basada en nombres de archivo</p>
+                            <p className="text-slate-500 font-medium">Versión Web Pro</p>
                         </header>
 
                         <div className="glass-card p-10 space-y-8">
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Token de Acceso (API Key)</label>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">API Key</label>
                                 <input 
                                     type="password" 
-                                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-300"
-                                    placeholder="Pega tu API Key aquí..."
+                                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                    placeholder="Ingresa tu token..."
                                     onChange={e => setApiKey(e.target.value)}
                                 />
                             </div>
 
-                            <div className="border-2 border-dashed border-slate-100 rounded-[32px] p-12 text-center hover:bg-slate-50/50 transition-colors group">
-                                <input 
-                                    type="file" 
-                                    accept=".zip" 
-                                    className="hidden" 
-                                    id="file-upload" 
-                                    onChange={e => setZipFile(e.target.files[0])} 
-                                />
-                                <label htmlFor="file-upload" className="cursor-pointer block">
-                                    <div className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold inline-block mb-4 shadow-xl shadow-blue-100 group-active:scale-95 transition-transform">
-                                        {zipFile ? "Archivo cargado" : "Seleccionar ZIP"}
+                            <div className="border-2 border-dashed border-slate-100 rounded-[32px] p-12 text-center hover:bg-slate-50 transition-all group">
+                                <input type="file" accept=".zip" className="hidden" id="file-up" onChange={e => setZipFile(e.target.files[0])} />
+                                <label htmlFor="file-up" className="cursor-pointer block">
+                                    <div className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold inline-block mb-4 shadow-xl shadow-blue-200 group-active:scale-95 transition-transform">
+                                        {zipFile ? "ZIP Cargado" : "Seleccionar ZIP"}
                                     </div>
-                                    <p className="text-xs text-slate-400 font-bold">
-                                        {zipFile ? zipFile.name : "Las fotos deben llamarse como el ID"}
+                                    <p className="text-xs text-slate-400 font-bold uppercase tracking-tighter">
+                                        {zipFile ? zipFile.name : "Arrastra tus fotos aquí"}
                                     </p>
                                 </label>
                             </div>
@@ -126,17 +114,17 @@
                             <button 
                                 onClick={processFiles}
                                 disabled={loading || !zipFile || !apiKey}
-                                className="w-full bg-[#1E293B] text-white py-5 rounded-2xl font-bold text-sm uppercase tracking-widest hover:bg-black transition-all shadow-2xl disabled:opacity-20 disabled:cursor-not-allowed active:scale-[0.98]"
+                                className="w-full bg-[#1E293B] text-white py-5 rounded-2xl font-bold text-sm uppercase tracking-widest hover:bg-black transition-all shadow-2xl disabled:opacity-20 active:scale-[0.98]"
                             >
-                                {loading ? "Procesando carga..." : "Iniciar Carga Masiva"}
+                                {loading ? "Sincronizando..." : "Iniciar Carga Masiva"}
                             </button>
                         </div>
 
                         <div className="mt-10 space-y-3">
                             {results.map((res, i) => (
-                                <div key={i} className={`p-4 rounded-2xl border flex justify-between items-center animate-in ${res.status === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-rose-50 border-rose-100 text-rose-700'}`}>
+                                <div key={i} className={`result-card p-4 rounded-2xl border flex justify-between items-center ${res.status === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-rose-50 border-rose-100 text-rose-700'}`}>
                                     <span className="font-bold text-sm">Usuario: {res.id}</span>
-                                    <span className="text-[10px] font-black uppercase tracking-widest bg-white/60 px-3 py-1.5 rounded-full border border-current/5">
+                                    <span className="text-[10px] font-black uppercase tracking-widest bg-white/60 px-3 py-1 rounded-full border border-current/10">
                                         {res.msg}
                                     </span>
                                 </div>
