@@ -33,7 +33,13 @@
                 try {
                     const zip = new JSZip();
                     const content = await zip.loadAsync(zipFile);
-                    const files = Object.values(content.files).filter(f => !f.dir && f.name.match(/\.(jpg|jpeg|png)$/i));
+                    const files = Object.values(content.files).filter(f => {
+                        const fileName = f.name.split('/').pop() || '';
+                        // Ignore directories, hidden files (starting with .), and __MACOSX folder
+                        if (f.dir || fileName.startsWith('.') || f.name.includes('__MACOSX')) return false;
+                        // Strictly process .jpg, .jpeg, or .png
+                        return /\.(jpg|jpeg|png)$/i.test(f.name);
+                    });
                     
                     for (let file of files) {
                         const employeeId = file.name.split('.')[0];
