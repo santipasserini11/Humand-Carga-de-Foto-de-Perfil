@@ -42,18 +42,38 @@
                     });
                     
                     for (let file of files) {
-                        const employeeId = file.name.split('.')[0];
-                        const blob = await file.async("blob");
-                        const formData = new FormData();
-                        formData.append('file', blob, file.name);
-
-                        const res = await fetch(`https://api-prod.humand.co/public/api/v1/users/${employeeId}/profile-picture`, {
-                            method: 'PUT',
-                            headers: { 'Authorization': `Basic ${apiKey}` },
-                            body: formData
-                        });
+                        const username = file.name.split('.')[0];
                         
-                        setStatus(prev => [...prev, { id: employeeId, success: res.ok }]);
+                        try {
+                            // 1. Buscar ID interno por username
+                            const searchRes = await fetch(`https://api-prod.humand.co/public/api/v1/users?username=${username}`, {
+                                method: 'GET',
+                                headers: { 'Authorization': `Basic ${apiKey}` }
+                            });
+                            
+                            if (!searchRes.ok) throw new Error("Error búsqueda");
+                            const userData = await searchRes.json();
+                            const user = Array.isArray(userData) ? userData[0] : userData;
+                            
+                            if (!user || !user.id) throw new Error("No encontrado");
+                            
+                            const internalId = user.id;
+
+                            // 2. Subir foto
+                            const blob = await file.async("blob");
+                            const formData = new FormData();
+                            formData.append('file', blob, file.name);
+
+                            const res = await fetch(`https://api-prod.humand.co/public/api/v1/users/${internalId}/profile-picture`, {
+                                method: 'PUT',
+                                headers: { 'Authorization': `Basic ${apiKey}` },
+                                body: formData
+                            });
+                            
+                            setStatus(prev => [...prev, { id: username, success: res.ok }]);
+                        } catch (e) {
+                            setStatus(prev => [...prev, { id: username, success: false, error: e.message }]);
+                        }
                     }
                 } catch (e) { alert("Error procesando ZIP"); }
                 setLoading(false);
