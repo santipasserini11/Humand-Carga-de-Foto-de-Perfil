@@ -1,5 +1,0 @@
-{
-  "name": "Humand Bulk Photo Uploader",
-  "description": "Herramienta para cargar fotos de perfil de empleados de forma masiva en Humand usando un archivo ZIP.",
-  "requestFramePermissions": []
-}
